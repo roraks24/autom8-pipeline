@@ -1,0 +1,91 @@
+ROHIT SAINI  |  RESUME  |  1
+ROHIT SAINI
+AI ENGINEERING | PYTHON BACKEND | GENAI, RAG & AGENTIC SYSTEMS
+Jaipur, Rajasthan, India | rsaini2407@gmail.com | +91 7877169982
+Portfolio: rohit-saini-dev.vercel.app | GitHub: github.com/roraks24 | LinkedIn: linkedin.com/in/rorak
+PROFILE
+AI Engineer Intern at Srishti GenAI and B.Tech Computer Science (AI/ML) student focused on Python backend development 
+and Generative AI. Builds applications with Python, FastAPI, PostgreSQL, SQLAlchemy, and modern LLM/RAG 
+technologies. Hands-on work includes a deployed document-grounded AI assistant, agentic execution systems, and AI-
+enabled product prototypes. Interested in Python Backend, GenAI, AI Engineering, and AI Automation opportunities, with an 
+emphasis on understanding system architecture and building reliable applications.
+EXPERIENCE
+Artificial Intelligence Engineer | Srishti GenAI | Internship
+Nov 2026 - Present | Bengaluru, India | Remote
+• Contributing to the initial architecture of an AI project, focusing on Python and FastAPI.
+Artificial Intelligence Intern | InAmigos Foundation (IAF) | Volunteer / Internship
+Aug 2026 - Sep 2026 | Jaipur, Rajasthan, India
+• Completed a structured volunteer/internship programme exploring practical AI tools and use cases; researched AI applications, 
+problem-solving workflows and social-impact opportunities, and prepared task deliverables.
+TECHNICAL SKILLS
+Languages & Web: Python, SQL, HTML, CSS
+Backend & Data: FastAPI, Flask, REST APIs, SQLAlchemy, Alembic, PostgreSQL, JWT authentication, bcrypt, file processing, 
+pytest
+GenAI & LLMs: AI agents, LLMs, RAG, prompt engineering, Groq/OpenAI API integration, embeddings, FAISS, MMR retrieval, 
+cross-encoder reranking, LangChain, LangGraph, multi-step agent workflows
+AI Systems & Integration: Tool registries, web search, GitHub API integration, source verification, SSE streaming, adaptive model 
+routing
+Deployment & Engineering: Git/GitHub, Docker, Docker Compose, AWS deployment, Firebase Hosting, CI workflows, health 
+checks, rate limiting, secret-redacted logging
+Applied ML / Scientific: scikit-learn, lightkurve, Transit Least Squares (TLS), Astropy, batman, emcee
+SELECTED PROJECTS & ENGINEERING
+Rorak AI V2 - Document-Grounded AI Assistant | Live: rorak.tech
+• Built and deployed a document-grounded AI assistant using FastAPI, PostgreSQL, SQLAlchemy, Alembic, FAISS, Hugging Face 
+embeddings, and Groq LLM generation.
+• Added PDF, DOCX, TXT, Markdown and CSV ingestion; top-10 retrieval with cross-encoder reranking to top 3; persistent 
+conversations and long-term memory; JWT/bcrypt authentication and per-user isolation; document management; prompt-injection 
+safeguards; CI, automated tests, rate limiting and AWS deployment.
+Agent Co - Autonomous Agentic Execution Platform  |  Independent engineering project | GitHub
+• Built a FastAPI and LangGraph execution engine that decomposes objectives into structured plans, normalizes action steps, and 
+iteratively executes tools across research, coding, and data-analysis workflows.
+• Implemented adaptive multi-provider model routing with task classification, requirement extraction, weighted capability/cost/latency 
+scoring, credential-aware selection, and fallback across Groq, OpenAI, DeepSeek, Anthropic, Google, and local model profiles.
+• Integrated schema-validated web, URL, GitHub, file, and data tools; source/deliverable verification; real-time SSE workflow and 
+audit views; and PostgreSQL persistence with SQLAlchemy, Alembic, JWT authentication, and Docker Compose.
+PharmaShield AI - Pharmaceutical Complaint Intelligence Platform  |  AI backend project
+• Built a complaint workflow using FastAPI, LangGraph, Groq, SQLAlchemy and PostgreSQL to turn natural-language and PDF 
+complaints into structured records.
+• Designed human-reviewed AI assistance for risk assessment, completeness checks, duplicate detection, root-cause hypotheses, 
+corrective/preventive action recommendations, and natural-language complaint updates.
+FastAPI Blogging API  |  Deployed personal project
+• Designed CRUD REST endpoints with FastAPI and SQLAlchemy, JWT authentication, custom middleware/dependencies, and a 
+router-based structure.
+• Implemented file uploads and background processing, then added pytest coverage before deployment.
+
+ROHIT SAINI  |  RESUME  |  2
+HACKATHONS & PRODUCT WORK
+ISRO Bharatiya Antariksh Hackathon (BAH) 2026 - Exoplanet Detection Pipeline | Finalist | Team Leader, Astroseekers | 
+Challenge 07
+• Led a three-person team building an end-to-end TESS light-curve pipeline with detrending, TLS/BLS transit detection, a Random 
+Forest + rule-based classifier, physical transit modelling and MCMC uncertainty estimation.
+• Validated results against two known systems (WASP-43 b and TIC 249064185) and authored a formal 10-item bug report, 
+methodology report, and submission deck.
+FreelanceIQ - Multi-Agent Freelance Scoping System  |  Team AgentSutra | NVIDIA + gnani.ai India Agentic AI Open 
+Hackathon
+• Contributed to the design of a five-agent workflow for freelance project scoping and requirement analysis; helped prepare a 14-
+slide hackathon submission deck. This was a submitted hackathon project, not a claimed commercial deployment.
+IIT Roorkee Cognizance 2026 - TrustLayer  |  AI-Powered Escrow Platform | Deployed prototype
+• Co-developed a freelance escrow prototype with employer/freelancer journeys, project decomposition and milestone checklists. 
+Integrated GPT-powered milestone generation, AI-assisted deliverable review with confidence scores, full/partial/no-payment 
+decisions, deadline enforcement and a 0-850 freelancer reliability score (PFI).
+ADDITIONAL PROJECTS
+Flask Expense Tracker & Feedback Application  |  Personal projects
+• Built small Flask-based web applications, extending practice with Python web routes and user-facing workflows.
+Python CLI Projects  |  Personal projects
+• Built command-line projects including an attendance calculator, to-do app, and banking app to practice program logic and 
+application structure.
+PRODUCT INITIATIVE & COMMUNITY
+AI-Agent Development Service - Fiverr  |  Independent product initiative
+• Packaged an AI-agent development service into tiered offerings with defined client requirements, FAQs, portfolio examples, and 
+an introduction video; exploring productized services without claiming unverified client revenue.
+EDUCATION
+JECRC University, Jaipur | B.Tech, Computer Science & Engineering (AI & ML) | Aug 2025 - Jun 2029 (Expected)
+CERTIFICATIONS & SELECTED CREDENTIALS
+• ISRO - Bharatiya Antariksh Hackathon 2026 | Aug 2026
+• JECRC / JECRC University - Introduction to Machine Learning with Sound; Introduction to Python | Jun 2026
+• Cognizance, IIT Roorkee - Final Participation Certificate 2026 | May 2026
+• IBM / IBMCE - Data Science Methodology; Data Science 101; Data Visualization | Dec 2025
+• Additional profile credentials: Text Analytics 101; Rapid Development for AI (AI Services)
+ENGINEERING FOCUS
+AI application development • Python backend engineering • API design • retrieval quality • agent orchestration • system integration • 
+deployment reliability • technical documentation • teamwork

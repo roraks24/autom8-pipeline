@@ -1,0 +1,70 @@
+{
+  "personal": {
+    "full_name": "Rohit Saini",
+    "email": "rsaini2407@gmail.com",
+    "phone": "+917877169982",
+    "city": "Jaipur",
+    "state": "Rajasthan",
+    "country": "India",
+    "linkedin": "https://www.linkedin.com/in/rorak/",
+    "github": "https://github.com/roraks24",
+    "portfolio": "https://rohit-saini-dev.vercel.app",
+    "fiverr": "https://www.fiverr.com/rorak07"
+  },
+  "education": {
+    "institution": "JECRC University, Jaipur",
+    "degree": "B.Tech",
+    "field_of_study": "Computer Science & Engineering (AI & ML)",
+    "current_year": "2nd year",
+    "start_year": 2025,
+    "graduation_year": 2029
+  },
+  "work_preferences": {
+    "target_roles": [
+      "GenAI Developer Intern",
+      "AI Agent Developer Intern",
+      "LLM / Backend Intern",
+      "Python AI Engineer Intern"
+    ],
+    "work_type": [
+      "Remote",
+      "Hybrid",
+      "In-office (open to relocate to Delhi/NCR, Bangalore, Mumbai, Pune)"
+    ],
+    "relocation": "Yes, open to relocate",
+    "notice_period": "Immediately available (0 days)",
+    "preferred_duration_months": "3 to 6 months",
+    "weekly_hours": "40 hours/week full-time or 20-25 hours/week part-time",
+    "expected_stipend": {
+      "inr_monthly": "₹25,000 - ₹35,000 / month",
+      "inr_numeric": 30000,
+      "usd_monthly": "$1,500 - $3,000 / month",
+      "usd_numeric": 2000,
+      "usd_hourly": "$15 - $25 / hour"
+    },
+    "drop_on_demographics_required": true
+  },
+  "core_competencies": {
+    "python_experience_years": 1,
+    "genai_rag_proficiency_rating": 5,
+    "genai_stack": "OpenAI API, Groq API (Llama 3.3 70B), LangChain, LangGraph, RAG Pipelines (FAISS, MMR, Cross-Encoders), Multi-Agent Systems",
+    "backend_stack": "Python, FastAPI, Flask, SQLAlchemy ORM, JWT Authentication, REST APIs, pytest",
+    "cloud_infra": "Docker, Google Cloud Run, Firebase Hosting, Tailscale, Linux/code-server",
+    "data_ml": "scikit-learn, Pandas, lightkurve, Transit Least Squares (TLS), astropy"
+  },
+  "standard_answers": {
+    "why_hire_me": "You should hire me because I don't just learn technologies — I use them to build working applications.\n\nFor example, I've built Rorak AI, a document-based AI assistant using FastAPI, RAG, FAISS, PostgreSQL, and LLM APIs. I've also worked on backend APIs, authentication, and database integration.\n\nI'm still early in my career, but I take ownership of what I build, I'm comfortable solving problems independently, and I'm willing to learn whatever the project requires.\n\nI'm not claiming to know everything. I'm saying that if you give me a real problem, I'll put in the effort to understand it, build a solution, and keep improving it based on feedback.",
+    "notice_period": "Immediately available to join full-time or part-time internship (0 days notice).",
+    "duration": "Available for 3 to 6 months.",
+    "weekly_hours": "40 hours/week full-time or 20-25 hours/week part-time.",
+    "relocation": "Yes, open to relocate to Delhi/NCR, Bangalore, Mumbai, Pune or other tech hubs.",
+    "authorized_in_india": "Yes, Indian citizen.",
+    "require_visa_outside_india": "Yes",
+    "require_visa_in_india": "No",
+    "authorized_in_us": "No (requires visa sponsorship)",
+    "years_of_experience_python": "1 year",
+    "current_college_year": "Currently in 2nd year pursuing B.Tech in CSE (AI & ML) at JECRC University, graduating in 2029.",
+    "expected_stipend_inr": "₹25,000 - ₹35,000 / month",
+    "expected_stipend_usd": "$1,500 - $3,000 / month"
+  }
+}

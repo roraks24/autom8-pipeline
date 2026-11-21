@@ -1,0 +1,39 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Application Database & SQLite stores
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+jobs.db
+
+# Authentication, Session Cookies & Sensitive Configs
+*cookies*.json
+cookies/
+whatsapp_config.json
+config/whatsapp_config.json
+
+# Application Runtime Output, Screenshots & Tailored Resumes
+application_logs/
+tailored_resumes/
+scratch/
+archive/
+
+# OS & Editor generated files
+.DS_Store
+Thumbs.db
+*.tmp
+.idea/
+.vscode/
+*.swp
