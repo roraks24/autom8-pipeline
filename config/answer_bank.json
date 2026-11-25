@@ -49,7 +49,7 @@
     "genai_rag_proficiency_rating": 5,
     "genai_stack": "OpenAI API, Groq API (Llama 3.3 70B), LangChain, LangGraph, RAG Pipelines (FAISS, MMR, Cross-Encoders), Multi-Agent Systems",
     "backend_stack": "Python, FastAPI, Flask, SQLAlchemy ORM, JWT Authentication, REST APIs, pytest",
-    "cloud_infra": "Docker, Google Cloud Run, Firebase Hosting, Tailscale, Linux/code-server",
+    "cloud_infra": "Docker, Firebase Hosting, Linux/code-server",
     "data_ml": "scikit-learn, Pandas, lightkurve, Transit Least Squares (TLS), astropy"
   },
   "standard_answers": {
@@ -64,7 +64,7 @@
     "authorized_in_us": "No (requires visa sponsorship)",
     "years_of_experience_python": "1 year",
     "current_college_year": "Currently in 2nd year pursuing B.Tech in CSE (AI & ML) at JECRC University, graduating in 2029.",
-    "expected_stipend_inr": "₹25,000 - ₹35,000 / month",
+    "expected_stipend_inr": "₹15,000 - ₹20,000 / month",
     "expected_stipend_usd": "$1,500 - $3,000 / month"
   }
 }

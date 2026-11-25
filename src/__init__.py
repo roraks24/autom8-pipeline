@@ -1,7 +1,7 @@
 """
-Job Application Automation Engine (Pipeline v2.0)
-High-Reliability Multi-Platform Automation across Wellfound, Internshala, WWR, Remote.co, and Naukri.
-Candidate: Rohit Saini (+91 7877169982 | https://www.rorak.tech)
+Autom8 Pipeline (v2.0)
+Modular job application automation across Wellfound & Internshala with JSON-only storage.
+Candidate: Rohit Saini | Portfolio: https://rohit-saini-dev.vercel.app
 """
 
 __version__ = "2.0.0"

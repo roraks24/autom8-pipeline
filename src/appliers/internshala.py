@@ -2,8 +2,6 @@ import json
 import logging
 import random
 import re
-import sqlite3
-import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -12,15 +10,20 @@ import requests
 from bs4 import BeautifulSoup
 
 from src.config import (
-    ANSWER_BANK_PATH,
-    BASE_DIR,
-    DB_PATH,
+    GITHUB_URL,
+    LINKEDIN_URL,
+    PORTFOLIO_URL,
     RESUMES_DIR,
     get_config_file,
     get_cookie_path,
     load_answer_bank,
 )
 from src.core.classifier import is_unpaid_role
+from src.core.llm import (
+    align_expected_salary,
+    answer_screening_question,
+    generate_tailored_pitch,
+)
 from src.core.tailor import generate_pdf, tailor_resume_data
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -176,6 +179,8 @@ class InternshalaApplier:
                 jd_sections.append(t)
         res["jd_text"] = " ".join(jd_sections)
 
+        full_page_text = soup.get_text(" ", strip=True)
+
         who_can_apply = soup.find(class_="who_can_apply")
         if who_can_apply:
             text = who_can_apply.get_text(" ", strip=True).lower()
@@ -183,11 +188,40 @@ class InternshalaApplier:
                 res["reason"] = "Ineligible: Reserved exclusively for women candidates"
                 return res
 
+        # Check button state and explicit ineligibility (location/relocation/profile mismatch)
+        btn = soup.find(class_=lambda c: c and "apply_now_btn" in c)
+        if btn:
+            btn_text = btn.get_text(" ", strip=True).lower()
+            is_disabled = btn.has_attr("disabled") or "disabled" in (btn.get("class") or [])
+            if "already applied" in btn_text:
+                res["status_hint"] = "already_applied"
+                res["reason"] = "Already applied on Internshala"
+                return res
+            if "not eligible" in btn_text or is_disabled:
+                res["status_hint"] = "ineligible"
+                res["reason"] = f"Ineligible: Internshala button state: {btn.get_text(strip=True)}"
+                return res
+        if "you are not eligible" in full_page_text.lower():
+            res["status_hint"] = "ineligible"
+            res["reason"] = "Ineligible: Location or profile requirement mismatch flagged by Internshala"
+            return res
+
         # Candidate Policy: Never apply to unpaid internships
-        stipend_el = soup.find(class_=lambda c: c and "stipend" in c)
-        stipend_text = stipend_el.get_text(" ", strip=True) if stipend_el else ""
-        full_page_text = soup.get_text(" ", strip=True)
+        stipend_el = (
+            soup.find("span", class_="stipend")
+            or soup.find(class_=lambda c: c and "stipend" in c)
+            or soup.find(class_=lambda c: c and "salary" in c)
+        )
+        raw_stipend = stipend_el.get_text(" ", strip=True) if stipend_el else ""
+        clean_sal = re.search(
+            r"(?:₹|\$|rs\.?|inr)\s*[\d,]+(?:\s*[–\-]\s*(?:₹|\$)?\s*[\d,]+)?(?:\s*/\s*(?:month|year|mo|yr|week|annum))?",
+            raw_stipend,
+            re.I,
+        )
+        stipend_text = clean_sal.group(0).strip() if clean_sal else raw_stipend
+        res["salary"] = stipend_text
         if is_unpaid_role(text=full_page_text, salary=stipend_text):
+            res["status_hint"] = "unpaid_excluded"
             res["reason"] = "Ineligible: Unpaid role excluded by candidate policy"
             return res
 
@@ -202,93 +236,104 @@ class InternshalaApplier:
         job_title: str = "",
         company_name: str = "",
         skills_required: Optional[List[str]] = None,
-        jd_text: str = ""
+        jd_text: str = "",
+        posted_salary: str = "",
+        option_value_map: Optional[Dict[str, str]] = None,
     ) -> str:
-        """Synthesizes high-impact answers tailored to candidate's verified profile and JD."""
+        """Synthesizes JD-grounded answers tailored to candidate's verified Master Resume."""
         norm_label = label.lower().strip()
         personal = self.answers.get("personal", {})
+        portfolio = personal.get("portfolio", PORTFOLIO_URL)
+        github = personal.get("github", GITHUB_URL)
+        linkedin = personal.get("linkedin", LINKEDIN_URL)
 
         if field_type == "radio":
             return "Yes"
 
-        if field_type == "range" or field_type == "select":
+        if field_type in ("range", "select"):
             if options:
+                llm_choice = answer_screening_question(
+                    label,
+                    field_type="select",
+                    options=options,
+                    company=company_name,
+                    job_title=job_title,
+                    jd_text=jd_text,
+                    posted_salary=posted_salary,
+                    skills_required=skills_required,
+                )
+                if llm_choice:
+                    return option_value_map.get(llm_choice, llm_choice) if option_value_map else llm_choice
                 num_opts = [o for o in options if o.isdigit()]
                 if num_opts:
-                    return str(max([int(x) for x in num_opts]))
-                return options[-1]
+                    if "year" in norm_label or "experience" in norm_label:
+                        chosen = "1" if "1" in num_opts else num_opts[0]
+                    else:
+                        chosen = str(max(int(x) for x in num_opts))
+                    return option_value_map.get(chosen, chosen) if option_value_map else chosen
+                chosen = options[0]
+                return option_value_map.get(chosen, chosen) if option_value_map else chosen
             return "5"
 
         if any(k in norm_label for k in ["availability", "join immediately", "start immediately", "duration"]):
-            return "I am available to start immediately with 0 days notice, for a duration of 3 to 6 months, committing 40 hours/week full-time or 20-25 hours/week part-time."
+            return "I am available to start immediately (0 days notice) for 3 to 6 months, committing 40 hours/week full-time or 20-25 hours/week part-time."
 
-        if any(k in norm_label for k in ["relocat", "in-office", "office", "delhi", "bangalore", "mumbai", "pune"]):
-            return "Yes, I am open to relocate to Delhi/NCR, Bangalore, Mumbai, Pune or other locations for this internship."
-
-        if any(k in norm_label for k in ["experience", "how many years", "years of experience"]):
-            return "I have 1 year of hands-on experience building production GenAI applications (Rorak AI) and backend services with Python, FastAPI, and FAISS."
+        if any(k in norm_label for k in ["relocat", "in-office", "office", "delhi", "bangalore", "mumbai", "pune", "jaipur", "hyderabad"]):
+            return "Yes, I am based in Jaipur and open to relocate or work in-office across major tech hubs as required."
 
         if any(k in norm_label for k in ["pursuing", "which year", "degree", "college", "graduation", "current year"]):
             return "Currently in 2nd year pursuing B.Tech in Computer Science & Engineering (AI & ML) at JECRC University, graduating in 2029."
 
         if any(k in norm_label for k in ["stipend", "expected stipend", "salary", "compensation"]):
-            return "₹25,000 - ₹35,000 / month (open to discussion as per company policy)."
+            return align_expected_salary(posted_salary, currency_hint=label)
 
         if any(k in norm_label for k in ["hours", "weekly", "per week"]):
             return "40 hours/week full-time or 20-25 hours/week part-time."
 
         if any(k in norm_label for k in ["portfolio", "github", "samples", "work sample", "link to your work", "past work"]):
             return (
-                f"Live Portfolio: {personal.get('portfolio', 'https://www.rorak.tech')}\n"
-                f"GitHub Profile: {personal.get('github', 'https://github.com/roraks24')}\n"
-                f"LinkedIn: {personal.get('linkedin', 'https://www.linkedin.com/in/rorak/')}\n"
-                "Featured production builds: Rorak AI (document-grounded RAG on FastAPI/Cloud Run) and "
-                "FreelanceIQ (5-agent scoping architecture for NVIDIA Agentic AI Hackathon)."
+                f"Live Portfolio: {portfolio}\n"
+                f"GitHub Profile: {github}\n"
+                f"LinkedIn: {linkedin}\n"
+                "Featured builds: Rorak AI V2 (FastAPI RAG with FAISS cross-encoder reranking) and "
+                "Agent Co (FastAPI + LangGraph autonomous execution engine)."
             )
 
-        if any(k in norm_label for k in ["built", "project", "interesting thing", "automation", "excel", "power bi"]):
-            return (
-                "I architected and shipped Rorak AI (live at https://www.rorak.tech), a production document-grounded "
-                "RAG application containerized with Docker and deployed on Google Cloud Run. The backend is built with Python "
-                "and FastAPI, utilizing FAISS vector indexing with cross-encoder reranking for semantic retrieval, and Groq's "
-                "Llama 3.3 70B for low-latency responses. In addition, I designed a 5-agent collaborative scoping architecture "
-                "for the NVIDIA + gnani.ai Agentic AI Hackathon with stateful cycle handling."
-            )
-
-        if any(k in norm_label for k in ["tools do you", "tools you use", "technologies", "tech stack", "software"]):
-            return (
-                "I regularly work with: 1) Cursor & VS Code with Claude 3.5 Sonnet / GPT-4o for code intelligence and rapid scaffolding, "
-                "2) Groq API (Llama 3.3 70B) & OpenAI for low-latency inference and prompt engineering, "
-                "3) LangGraph & LangSmith for multi-agent workflows, state management, and telemetry, and "
-                "4) Python, FastAPI, Docker, and FAISS for scalable backend API development and vector search."
-            )
-
+        # Why should we hire you / Cover letter -> Grounded JD-specific 3-sentence pitch
         if any(k in norm_label for k in ["why should we hire", "why hire", "suitable", "fit for this role", "cover letter"]):
-            std_pitch = self.answers.get("standard_answers", {}).get("why_hire_me")
-            if std_pitch:
-                return std_pitch
-            skills_pitch = f" with strong skills in {', '.join(skills_required[:3])}" if skills_required else ""
+            llm_pitch = generate_tailored_pitch(
+                company=company_name or "the company",
+                job_title=job_title or "Engineer",
+                jd_text=jd_text,
+                skills_required=skills_required,
+            )
+            if llm_pitch:
+                return llm_pitch
+            skills_pitch = f" with hands-on skills in {', '.join(skills_required[:4])}" if skills_required else ""
             return (
-                f"GenAI & Python Developer targeting {company_name or 'the team'}{skills_pitch}. "
-                f"I have hands-on production experience building, containerizing, and deploying LLM applications and REST APIs. "
-                f"Recently architected and shipped Rorak AI (FastAPI, FAISS, Google Cloud Run at www.rorak.tech), designed a 5-agent "
-                f"scoping architecture for NVIDIA's Agentic AI Hackathon, and finalist in ISRO's BAH 2026. "
-                f"I write clean, modular, tested Python code (pytest) with high autonomy and rapid turnaround in production environments."
+                f"AI & Python Engineer applying for {job_title or 'this role'} at {company_name or 'your team'}{skills_pitch}. "
+                f"I currently intern at Srishti GenAI working on Python/FastAPI AI architecture and built Rorak AI V2 "
+                f"(document-grounded RAG with FAISS reranking, PostgreSQL, Docker) and Agent Co (LangGraph multi-agent orchestration). "
+                f"I am available immediately and share my work at {portfolio} and {github}."
             )
 
-        if any(k in norm_label for k in ["design", "architecture", "overview", "system", "daily"]):
-            return (
-                "I would architect an automated data & AI pipeline: 1) Ingestion: Fetch POS sales, attendance, food inventory, "
-                "and maintenance tickets into PostgreSQL/BigQuery via scheduled webhooks/cron jobs. 2) Analysis: A Python backend "
-                "running scheduled agentic tasks computes KPIs and flags anomalies (e.g. food cost variance, ticket SLA breaches). "
-                "3) Delivery: Auto-generate an executive 5-minute digest delivered via a streamlined web dashboard (FastAPI/Streamlit) "
-                "and an automated daily WhatsApp/Telegram summary report."
-            )
+        # Any other open-ended technical / project / experience question -> Grounded Groq synthesis
+        llm_ans = answer_screening_question(
+            label,
+            field_type=field_type if field_type in ("text", "number") else "textarea",
+            company=company_name,
+            job_title=job_title,
+            jd_text=jd_text,
+            posted_salary=posted_salary,
+            skills_required=skills_required,
+        )
+        if llm_ans:
+            return llm_ans
 
         return (
-            f"Hands-on experience developing Python backends (FastAPI, Docker) and deploying production GenAI applications "
-            f"(RAG pipelines with FAISS and multi-agent workflows in LangGraph). I write clean, robust code with rapid execution "
-            f"and high autonomy for {company_name or 'the team'}."
+            f"I have hands-on internship and project experience building Python/FastAPI backends, "
+            f"FAISS RAG pipelines (Rorak AI V2), and multi-agent workflows (Agent Co with LangGraph). "
+            f"My portfolio is live at {portfolio} and code at {github}."
         )
 
     def apply_to_job(self, job_url: str, mode: str = "submit") -> Dict[str, Any]:
@@ -307,12 +352,17 @@ class InternshalaApplier:
         details = self.check_eligibility_and_details(job_url)
         result["company"] = details.get("company_name", "")
         result["title"] = details.get("job_title", "")
+        result["salary"] = details.get("salary", "")
+        result["skills_required"] = details.get("skills_required", [])
 
         if not details["eligible"]:
-            status_code = "unpaid_excluded" if "unpaid" in details.get("reason", "").lower() else "ineligible"
+            hint = details.get("status_hint")
+            if hint:
+                status_code = hint
+            else:
+                status_code = "unpaid_excluded" if "unpaid" in details.get("reason", "").lower() else "ineligible"
             result["status"] = status_code
             result["message"] = details["reason"]
-            self._update_db_status(job_url, status_code, details["reason"])
             return result
 
         internship_id = details["internship_id"]
@@ -356,10 +406,8 @@ class InternshalaApplier:
                 result["message"] = f"easy_apply failed: {err_text}"
                 if "already applied" in err_text.lower():
                     result["status"] = "already_applied"
-                    self._update_db_status(job_url, "applied", f"Already Applied ({err_text})")
                 elif "invalid job" in err_text.lower() or "closed" in err_text.lower():
                     result["status"] = "rejected"
-                    self._update_db_status(job_url, "rejected", err_text)
                 return result
         except Exception as e:
             result["message"] = f"easy_apply request error: {str(e)}"
@@ -398,7 +446,6 @@ class InternshalaApplier:
                 logger.info(f"   [Policy Drop] Form requires mandatory academic/demographic screening: '{label_text}'. Dropping internship.")
                 result["status"] = "dropped_demographics_required"
                 result["message"] = f"Dropped: Requires mandatory CGPA / 12th marks / DOB / Address ({label_text})"
-                self._update_db_status(job_url, "dropped_demographics_required", result["message"])
                 return result
 
             txt = group.find("textarea")
@@ -411,7 +458,8 @@ class InternshalaApplier:
                         job_title=details["job_title"],
                         company_name=details["company_name"],
                         skills_required=skills_req,
-                        jd_text=jd_text
+                        jd_text=jd_text,
+                        posted_salary=details.get("salary", ""),
                     )
                     payload[tname] = ans
                     questions_answered.append({"question": label_text, "name": tname, "answer": ans})
@@ -434,15 +482,24 @@ class InternshalaApplier:
             if sel:
                 sname = sel.get("name")
                 if sname:
-                    opts = [o.get("value") for o in sel.find_all("option") if o.get("value")]
+                    opt_map: Dict[str, str] = {}
+                    opt_labels: List[str] = []
+                    for o in sel.find_all("option"):
+                        val_attr = (o.get("value") or "").strip()
+                        lbl_attr = o.get_text(" ", strip=True) or val_attr
+                        if val_attr and lbl_attr.lower() not in ("select", "choose", "--select--"):
+                            opt_labels.append(lbl_attr)
+                            opt_map[lbl_attr] = val_attr
                     ans = self.synthesize_answer(
                         label_text,
                         "range",
-                        options=opts,
+                        options=opt_labels,
                         job_title=details["job_title"],
                         company_name=details["company_name"],
                         skills_required=skills_req,
-                        jd_text=jd_text
+                        jd_text=jd_text,
+                        posted_salary=details.get("salary", ""),
+                        option_value_map=opt_map,
                     )
                     payload[sname] = ans
                     questions_answered.append({"question": label_text, "name": sname, "answer": ans})
@@ -452,6 +509,7 @@ class InternshalaApplier:
             if inp_text:
                 iname = inp_text.get("name")
                 if iname and iname not in ["confirm_availability", "confirm_availability_textarea"]:
+                    is_num = inp_text.get("type") == "number" or "numeric" in iname
                     if any(k in norm_lbl for k in ["year", "experience", "how many years"]):
                         ans = "1"
                     elif any(k in norm_lbl for k in ["which year", "college year", "current year", "pursuing"]):
@@ -465,17 +523,30 @@ class InternshalaApplier:
                     elif any(k in norm_lbl for k in ["notice", "days"]):
                         ans = "0"
                     elif any(k in norm_lbl for k in ["stipend", "compensation", "salary", "inr"]):
-                        ans = "30000"
+                        ans = align_expected_salary(
+                            details.get("salary", ""),
+                            is_numeric=is_num,
+                            currency_hint=label_text,
+                        )
                     elif any(k in norm_lbl for k in ["hours", "weekly hours", "per week"]):
                         ans = "40"
                     elif "github" in norm_lbl:
-                        ans = "https://github.com/roraks24"
+                        ans = self.answers.get("personal", {}).get("github", GITHUB_URL)
                     elif "portfolio" in norm_lbl or "website" in norm_lbl:
-                        ans = "https://www.rorak.tech"
+                        ans = self.answers.get("personal", {}).get("portfolio", PORTFOLIO_URL)
                     elif "linkedin" in norm_lbl:
-                        ans = "https://www.linkedin.com/in/rorak/"
+                        ans = self.answers.get("personal", {}).get("linkedin", LINKEDIN_URL)
                     else:
-                        ans = "1" if inp_text.get("type") == "number" or "numeric" in iname else "Yes"
+                        llm_val = answer_screening_question(
+                            label_text,
+                            field_type="number" if is_num else "text",
+                            company=details["company_name"],
+                            job_title=details["job_title"],
+                            jd_text=jd_text,
+                            posted_salary=details.get("salary", ""),
+                            skills_required=skills_req,
+                        )
+                        ans = llm_val or ("1" if is_num else "Yes")
                     payload[iname] = ans
                     questions_answered.append({"question": label_text, "name": iname, "answer": ans})
                 continue
@@ -486,7 +557,6 @@ class InternshalaApplier:
             result["status"] = "staged_for_review"
             result["payload"] = payload
             result["message"] = f"Successfully staged application with {len(questions_answered)} answers prepared and tailored resume."
-            self._update_db_status(job_url, "staged_for_review", json.dumps(payload))
             return result
 
         submit_url = f"https://internshala.com/application/submit/{slug}"
@@ -527,14 +597,12 @@ class InternshalaApplier:
                 result["status"] = "applied"
                 result["application_id"] = app_id
                 result["message"] = f"Application successfully submitted! Application ID: {app_id}"
-                self._update_db_status(job_url, "applied", f"Application ID: {app_id}")
                 logger.info(f"✅ Successfully applied to {details.get('company_name')} - ID: {app_id}")
                 return result
             else:
                 err = sub_data.get("errorThrown") or sub_data.get("errorCode") or "Submission rejected"
                 result["status"] = "rejected"
                 result["message"] = err
-                self._update_db_status(job_url, "rejected", err)
                 return result
         except Exception as e:
             result["message"] = f"Exception during application submit: {str(e)}"
@@ -557,18 +625,105 @@ class InternshalaApplier:
             logger.error(f"Error fetching recent applications: {e}")
             return []
 
-    def _update_db_status(self, job_url: str, status: str, notes: str = ""):
-        if not DB_PATH.exists():
-            return
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            notes_str = json.dumps(notes) if isinstance(notes, (dict, list)) else str(notes)
-            c.execute(
-                "UPDATE jobs SET status = ?, notes = ? WHERE url = ?",
-                (status, notes_str, job_url)
+    def fetch_dashboard_applications(self, max_pages: int = 5) -> Dict[str, Any]:
+        """Fetches paginated Internshala dashboard application statuses."""
+        headers = {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": "https://internshala.com/student/applications",
+        }
+        applications: List[Dict[str, Any]] = []
+        pages_fetched = 0
+        total_pages_available = 1
+
+        for page in range(1, max(1, max_pages) + 1):
+            url = f"https://internshala.com/api/candidate/dashboard/paginated_applications/new/{page}"
+            try:
+                r = self.session.post(url, headers=headers, data={}, timeout=15)
+                if r.status_code != 200:
+                    logger.warning(f"Dashboard sync page {page} returned HTTP {r.status_code}")
+                    break
+                data = r.json()
+                if not data.get("success", True):
+                    break
+                pages_fetched += 1
+                total_pages_available = int(data.get("total_pages") or pages_fetched)
+                batch = data.get("applications", []) or []
+                if not batch:
+                    break
+                applications.extend(batch)
+                if page >= total_pages_available:
+                    break
+            except Exception as e:
+                logger.error(f"Error fetching dashboard page {page}: {e}")
+                break
+
+        return {
+            "applications": applications,
+            "pages_fetched": pages_fetched,
+            "total_pages_available": total_pages_available,
+        }
+
+    def sync_application_outcomes(self, applied_store: Any, max_pages: int = 5) -> Dict[str, Any]:
+        """Syncs Internshala dashboard statuses back into data/applied_jobs.json."""
+        fetched = self.fetch_dashboard_applications(max_pages=max_pages)
+        apps = fetched["applications"]
+        status_counts: Dict[str, int] = {}
+        positive_leads: List[Dict[str, Any]] = []
+        updated = 0
+
+        for item in apps:
+            status = (item.get("application_status") or "").strip() or "Applied"
+            status_counts[status] = status_counts.get(status, 0) + 1
+            has_assignment = bool(item.get("assignment_link"))
+            has_interview = bool(item.get("interview_link"))
+
+            if status.lower() not in ("applied", "seen", "not selected", "rejected", "expired", "withdrawn") or has_assignment or has_interview:
+                positive_leads.append({
+                    "id": item.get("id"),
+                    "company": item.get("company_name"),
+                    "title": item.get("profile_to_display"),
+                    "status": status,
+                    "applied_at": item.get("applied_at"),
+                    "url": item.get("url"),
+                    "interview_link": item.get("interview_link"),
+                    "assignment_link": item.get("assignment_link"),
+                })
+
+            changed = applied_store.update_outcome(
+                application_id=str(item.get("id")) if item.get("id") else None,
+                url=item.get("url") or "",
+                outcome=status,
+                company=item.get("company_name") or "",
+                title=item.get("profile_to_display") or "",
+                source="internshala",
+                vha_score=item.get("vha_score"),
+                has_assignment=has_assignment,
+                has_interview=has_interview,
+                flush=False,
             )
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            logger.error(f"Failed to update jobs.db: {e}")
+            if changed:
+                updated += 1
+
+        if updated > 0:
+            applied_store.save_batch()
+
+        return {
+            "pages_fetched": fetched["pages_fetched"],
+            "total_pages_available": fetched["total_pages_available"],
+            "apps_scanned": len(apps),
+            "updated": updated,
+            "status_counts": status_counts,
+            "positive_leads": positive_leads,
+        }
+
+
+def sync_internshala_outcomes(max_pages: int = 5) -> Dict[str, Any]:
+    """Convenience helper to sync Internshala application outcomes into data/applied_jobs.json."""
+    from src.storage.applied_store import AppliedJobsStore
+
+    store = AppliedJobsStore()
+    applier = InternshalaApplier()
+    res = applier.sync_application_outcomes(store, max_pages=max_pages)
+    res["db_outcome_counts"] = store.get_stats().get("outcome_counts", {})
+    return res

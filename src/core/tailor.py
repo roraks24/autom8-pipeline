@@ -1,12 +1,8 @@
-import html
 import json
 import logging
-import os
 import re
-import sqlite3
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
 import jinja2
 from playwright.sync_api import sync_playwright
@@ -14,7 +10,6 @@ from playwright.sync_api import sync_playwright
 from src.config import (
     CANDIDATE_EMAIL,
     CANDIDATE_NAME,
-    DB_PATH,
     DEFAULT_PHONE,
     GITHUB_URL,
     LINKEDIN_URL,
@@ -22,6 +17,7 @@ from src.config import (
     RESUMES_DIR,
     get_resume_template_path,
 )
+from src.core.llm import generate_resume_summary
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("tailor")
@@ -41,7 +37,7 @@ VERIFIED_SKILLS_REPOSITORY = {
         "SSE Streaming", "Adaptive Model Routing", "Prompt-Injection Mitigation", "Workflow Audit Trails"
     ],
     "Cloud, DevOps & Tools": [
-        "Docker", "Docker Compose", "Google Cloud Run", "Firebase Hosting", "CI Workflows",
+        "Docker", "Docker Compose", "AWS", "Google Cloud Run", "Firebase Hosting", "CI Workflows",
         "Health Checks", "Rate Limiting", "Secret-Redacted Logging", "Git & GitHub", "Linux / Bash", "PowerShell"
     ],
     "Data & Machine Learning": [
@@ -49,7 +45,7 @@ VERIFIED_SKILLS_REPOSITORY = {
         "lightkurve", "Transit Least Squares (TLS)", "Astropy", "batman", "emcee"
     ],
     "Languages & Web": [
-        "Python", "SQL", "JavaScript", "HTML", "CSS", "React", "Redux Toolkit"
+        "SQL", "JavaScript", "HTML", "CSS", "React", "Redux Toolkit"
     ]
 }
 
@@ -221,6 +217,7 @@ def analyze_job_requirements(target_title: str, target_company: str, jd_text: st
     sorted_cats = sorted(cat_scores.keys(), key=lambda c: -cat_scores[c])
     tailored_categories = []
     matched_all_skills = []
+    seen_matched = set()
 
     for cat in sorted_cats:
         cat_skills = VERIFIED_SKILLS_REPOSITORY.get(cat, [])
@@ -228,7 +225,11 @@ def analyze_job_requirements(target_title: str, target_company: str, jd_text: st
             continue
         matched = [s for s in cat_skills if s.lower() in combined]
         unmatched = [s for s in cat_skills if s.lower() not in combined]
-        matched_all_skills.extend(matched)
+        for ms in matched:
+            ms_low = ms.lower()
+            if ms_low not in seen_matched:
+                seen_matched.add(ms_low)
+                matched_all_skills.append(ms)
         ordered_skills = matched + unmatched
         tailored_categories.append({
             "name": cat,
@@ -263,9 +264,25 @@ def analyze_job_requirements(target_title: str, target_company: str, jd_text: st
     }
 
 
-def tailor_resume_data(target_title: str, target_company: str, jd_text: str = "", skills_required: Optional[List[str]] = None) -> Dict[str, Any]:
+def tailor_resume_data(
+    target_title: str,
+    target_company: str,
+    jd_text: str = "",
+    skills_required: Optional[List[str]] = None,
+    use_llm: bool = True,
+) -> Dict[str, Any]:
     """Generates the complete context for rendering an ATS-optimized resume."""
     analysis = analyze_job_requirements(target_title, target_company, jd_text, skills_required)
+    summary_text = analysis["summary"]
+    if use_llm and jd_text and len(jd_text.strip()) > 40:
+        llm_summary = generate_resume_summary(
+            company=target_company,
+            job_title=target_title,
+            jd_text=jd_text,
+            matched_skills=analysis["matched_skills"],
+        )
+        if llm_summary:
+            summary_text = llm_summary
 
     return {
         "name": CANDIDATE_NAME.upper(),
@@ -276,7 +293,7 @@ def tailor_resume_data(target_title: str, target_company: str, jd_text: str = ""
         "github": GITHUB_URL,
         "linkedin": LINKEDIN_URL,
         "portfolio": PORTFOLIO_URL,
-        "summary": analysis["summary"],
+        "summary": summary_text,
         "skill_categories": analysis["skill_categories"],
         "skills_genai": ", ".join(VERIFIED_SKILLS_REPOSITORY["GenAI & Multi-Agent"]),
         "skills_backend": ", ".join(VERIFIED_SKILLS_REPOSITORY["Backend & APIs"]),
@@ -325,17 +342,29 @@ def generate_pdf(context: Dict[str, Any], output_path: Path) -> Path:
     return output_path
 
 
-def get_or_create_resume(company: str, title: str, notes: str = "") -> Path:
+def get_or_create_resume(
+    company: str,
+    title: str,
+    notes: str = "",
+    skills_required: Optional[List[str]] = None,
+    use_llm: bool = True,
+) -> Path:
     """Dynamically generates a freshly tailored ATS-compliant PDF resume for the target job."""
     clean_comp = re.sub(r"[^a-zA-Z0-9_-]", "_", company)
     clean_title = re.sub(r"[^a-zA-Z0-9_-]", "_", title)[:30]
     expected_pdf = RESUMES_DIR / f"Rohit_Saini_{clean_comp}_{clean_title}.pdf"
 
     print(f"  [JD Review] Analyzing job requirements for {company} - {title}...")
-    ctx = tailor_resume_data(target_title=title, target_company=company, jd_text=notes)
+    ctx = tailor_resume_data(
+        target_title=title,
+        target_company=company,
+        jd_text=notes,
+        skills_required=skills_required,
+        use_llm=use_llm,
+    )
     generate_pdf(ctx, expected_pdf)
     matched = ctx.get("matched_skills", [])
-    print(f"  [ATS Tailor] Matched Skills: {', '.join(matched[:5]) if matched else 'Core Python / GenAI'}")
+    print(f"  [ATS Tailor] Matched Skills: {', '.join(matched[:6]) if matched else 'Core Python / GenAI'}")
     print(f"  [ATS Tailor] Compiled ATS resume: {expected_pdf.name}")
     return expected_pdf
 

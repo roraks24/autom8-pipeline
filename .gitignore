@@ -11,24 +11,25 @@ env/
 venv/
 ENV/
 
-# Application Database & SQLite stores
-*.db
-*.db-journal
-*.sqlite
-*.sqlite3
-jobs.db
+# JSON Application Database & Skip-Cache
+data/
 
 # Authentication, Session Cookies & Sensitive Configs
 *cookies*.json
 cookies/
-whatsapp_config.json
 config/whatsapp_config.json
 
-# Application Runtime Output, Screenshots & Tailored Resumes
-application_logs/
+# Generated Runtime Outputs
 tailored_resumes/
 scratch/
 archive/
+
+# Legacy Database / Log Artifacts (if any)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.png
 
 # OS & Editor generated files
 .DS_Store
